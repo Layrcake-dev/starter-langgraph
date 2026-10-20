@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 from langchain_core.language_models import GenericFakeChatModel
@@ -13,6 +13,7 @@ from langchain_core.runnables import Runnable
 from layrcake.agent_tools import AsyncLayrcakeSession
 
 from agent import build_agent, stream
+from instructions import instructions
 from tests.conftest import APPROVAL_URL, CAMPAIGN_ID, MockLayrcake
 
 
@@ -84,3 +85,23 @@ async def test_stream_prints_each_tool_call(run: AsyncLayrcakeSession, capsys: p
 
     assert final == "Kept 1 address."
     assert capsys.readouterr().out == "-> verify_email\n"
+
+
+def test_with_sender_name_emails_are_signed_with_it() -> None:
+    prompt = instructions(Decimal(100), dry_run=False, sender_name="Sam Carter")
+
+    assert "End every email with this sign-off line, exactly as written: Sam Carter\n" in prompt
+    assert "never invent a name, title or company for the sender" in prompt
+    assert "[Your name]" not in prompt
+
+
+@pytest.mark.parametrize("sender_name", [None, "", "   "])
+def test_without_sender_name_emails_are_signed_your_name(sender_name: Optional[str]) -> None:
+    prompt = instructions(Decimal(100), dry_run=False, sender_name=sender_name)
+
+    assert "End every email with this sign-off line, exactly as written: [Your name]\n" in prompt
+    assert "never invent a name, title or company for the sender" in prompt
+    assert prompt.endswith(
+        "Also say that every email is signed [Your name] and the sign-off must be filled in before the campaign\n"
+        "is approved."
+    )

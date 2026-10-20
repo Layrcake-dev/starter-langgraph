@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import os
 from decimal import Decimal
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
@@ -21,12 +21,16 @@ DEFAULT_MODEL = "anthropic:claude-sonnet-5-5"
 MODEL_KEYS = {"anthropic": "ANTHROPIC_API_KEY", "openrouter": "OPENROUTER_API_KEY", "openai": "OPENAI_API_KEY"}
 
 
-def build_agent(budget: Decimal, dry_run: bool, model: Union[str, BaseChatModel]) -> Any:
+def build_agent(
+    budget: Decimal, dry_run: bool, model: Union[str, BaseChatModel], sender_name: Optional[str] = None
+) -> Any:
     """A LangGraph agent. launch_campaign is return_direct, so the graph ends at the approval link."""
     if isinstance(model, str):
         model = init_chat_model(model)  # "provider:model", e.g. anthropic:claude-sonnet-5-5
     # Paid calls take the session's lock, so parallel tool calls still run one at a time.
-    return create_agent(model, TOOLS, system_prompt=instructions(budget, dry_run), context_schema=AsyncLayrcakeSession)
+    return create_agent(
+        model, TOOLS, system_prompt=instructions(budget, dry_run, sender_name), context_schema=AsyncLayrcakeSession
+    )
 
 
 async def stream(agent: Any, brief: str, run: AsyncLayrcakeSession) -> str:
@@ -70,7 +74,7 @@ async def main() -> None:
     )
     async with AsyncLayrcake() as client:  # reads LAYRCAKE_API_KEY
         run = AsyncLayrcakeSession(client, budget_credits=budget, dry_run=args.dry_run)
-        agent = build_agent(budget, args.dry_run, model)
+        agent = build_agent(budget, args.dry_run, model, os.environ.get("SENDER_NAME"))
         final = await stream(agent, brief, run)
 
     if final and not run.approval_url and not run.launch_error:
