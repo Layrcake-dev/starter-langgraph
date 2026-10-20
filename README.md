@@ -77,22 +77,25 @@ With no brief, it uses the one above.
 Each tool call prints as it runs. The run ends with a short report from the tools themselves:
 
 ```text
-Live run. Budget: 100 credits.
-Brief: Find 10 heads of sales at software companies in London ...
+Live run. Budget: 25 credits.
+Brief: Find 3 heads of sales at software companies in London with 20 to 200 staff, verify their work emails, and draft a short campaign about cutting time spent on lead research.
 
 -> find_leads
 -> enrich
+-> enrich
+-> enrich
 -> verify_email
-...
+-> verify_email
+-> verify_email
 -> create_campaign
 -> launch_campaign
 
-Found 10 people. Kept 8 verified emails (2 catch-all).
-Layrcake credits spent: 53 of 100.
+Found 3 people. Kept 3 verified emails (1 catch-all).
+Layrcake credits spent: 21.75 of 25.
 Nothing has been sent. A person approves or declines here: <approval link>
 ```
 
-The numbers above show the shape of a run. Your run will differ. A dry run ends with the model's cost estimate instead of a link.
+This is our test run on 20 October 2026, with `BUDGET=25`, the three-person brief above and `openrouter:anthropic/claude-sonnet-5.5` through OpenRouter. It took 31 seconds. Your run will differ. A dry run ends with the model's cost estimate instead of a link.
 
 ## How approval works
 
