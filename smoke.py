@@ -8,15 +8,14 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import uuid
-from decimal import Decimal
 from typing import Any
 
 from langchain.tools import ToolRuntime
 from langchain_core.tools import BaseTool
 from layrcake import AsyncLayrcake
+from layrcake.agent_tools import AsyncLayrcakeSession
 
-from layrcake_tools import Run, create_campaign_tool, enrich_tool, find_leads_tool, verify_email_tool
+from layrcake_tools import create_campaign_tool, enrich_tool, find_leads_tool, verify_email_tool
 
 SAMPLE = {"email": "sample.person@example.com", "first_name": "Sample"}
 CALLS: list[tuple[BaseTool, dict[str, Any]]] = [
@@ -40,7 +39,7 @@ CALLS: list[tuple[BaseTool, dict[str, Any]]] = [
 ]
 
 
-async def call(tool: BaseTool, run: Run, args: dict[str, Any]) -> Any:
+async def call(tool: BaseTool, run: AsyncLayrcakeSession, args: dict[str, Any]) -> Any:
     """Invoke a tool the way the agent's ToolNode does: a tool call with the run as runtime context."""
     output = await tool.ainvoke(
         {"type": "tool_call", "name": tool.name, "id": "smoke", "args": {**args, "runtime": runtime(run)}}
@@ -51,7 +50,7 @@ async def call(tool: BaseTool, run: Run, args: dict[str, Any]) -> Any:
         raise SystemExit(f"{tool.name} failed: {output.content}") from None
 
 
-def runtime(run: Run) -> ToolRuntime[Run]:
+def runtime(run: AsyncLayrcakeSession) -> ToolRuntime[AsyncLayrcakeSession]:
     return ToolRuntime(state={}, context=run, config={}, stream_writer=lambda _: None, tool_call_id="smoke", store=None)
 
 
@@ -59,7 +58,7 @@ async def main() -> None:
     async with AsyncLayrcake() as client:  # reads LAYRCAKE_API_KEY
         me = await client.get_me()
         print(f'Key works for workspace "{me.result["workspace"]["name"]}".')
-        run = Run(client=client, budget=Decimal(os.environ.get("BUDGET", "100")), dry_run=True, run_id=uuid.uuid4().hex)
+        run = AsyncLayrcakeSession(client, budget_credits=os.environ.get("BUDGET", "100"), dry_run=True)
         for tool, args in CALLS:
             plan = await call(tool, run, args)
             if not plan.get("dry_run"):

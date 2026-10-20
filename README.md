@@ -2,7 +2,7 @@
 
 A [LangGraph](https://langchain-ai.github.io/langgraph/) agent that turns a one-sentence brief into about 10 people with verified work emails and a draft campaign, then stops at the approval link.
 
-It uses LangChain's `create_agent`, which builds a LangGraph graph, with five `@tool` functions over the official [`layrcake`](https://github.com/Layrcake-dev/layrcake-python) Python SDK. Nothing is sent. A person approves the campaign in the Layrcake console before any email goes out.
+It uses LangChain's `create_agent`, which builds a LangGraph graph, with five tools from the official [`layrcake`](https://github.com/Layrcake-dev/layrcake-python) Python SDK. Nothing is sent. A person approves the campaign in the Layrcake console before any email goes out.
 
 This kit is in Python because most LangGraph users work in Python.
 
@@ -16,10 +16,10 @@ This kit is in Python because most LangGraph users work in Python.
 
 ## Why tools over the SDK for this kit
 
-LangChain tools are typed Python functions, so wrapping the `layrcake` SDK in five of them keeps the rules in code:
+The tools and their rules come from the `layrcake` SDK's `layrcake.agent_tools` module, the same code behind the LangChain, LlamaIndex and CrewAI packages. `layrcake_tools.py` hands five of them to LangChain, so the rules stay in code:
 
-- Each tool takes only the arguments this agent needs. `launch_campaign` has no `confirmation_token` argument, so the model cannot approve anything.
-- The run state travels as LangGraph runtime context (`context_schema=Run`), and each tool reads it through `ToolRuntime`. The model never sees it.
+- Each tool's name, description with its price, and argument schema come from the SDK. `launch_campaign` has no `confirmation_token` argument, so the model cannot approve anything, and the token is removed from what the model reads.
+- The run state is an `AsyncLayrcakeSession` that travels as LangGraph runtime context (`context_schema=AsyncLayrcakeSession`), and each tool reads it through `ToolRuntime`. The model never sees it.
 - Every paid call gets `budget_credits` set to what is left of `BUDGET`. `--dry-run` adds `dry_run: true` to every call. `create_campaign` refuses any address that did not pass `verify_email` in this run. Once the approval link appears, every paid tool refuses.
 - Paid calls take a lock, so the running total stays exact even when the model calls tools in parallel. Each call carries an idempotency key, so a repeated call returns the first result instead of charging again.
 - `launch_campaign` is a `return_direct` tool, so the graph ends as soon as it returns the approval link.
@@ -123,7 +123,7 @@ MODEL=openrouter:anthropic/claude-sonnet-5.5
 
 ```text
 agent.py              the agent: model, graph, stop rule, report
-layrcake_tools.py     the five Layrcake tools and the run state
+layrcake_tools.py     the five Layrcake tools, from layrcake.agent_tools
 instructions.py       the system prompt
 smoke.py              free setup check, no model call
 tests/test_tools.py   tool tests with a mocked Layrcake API
@@ -139,7 +139,9 @@ uv run mypy
 uv run pytest
 ```
 
-The tests give the `layrcake` client an `httpx.MockTransport`, and drive the graph with a scripted chat model. They need no keys and make no network calls.
+The tests give the `layrcake` client an `httpx.MockTransport`, and drive the graph with a scripted chat model. They need no keys and make no network calls. The run rules themselves are tested in the SDK.
+
+Until `layrcake` 0.2.0 is on PyPI, `[tool.uv.sources]` in `pyproject.toml` installs the SDK from a local checkout of [layrcake-python](https://github.com/Layrcake-dev/layrcake-python) at `../../layrcake-python`. Delete that table and run `uv lock` before publishing.
 
 ## Links
 

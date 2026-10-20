@@ -10,9 +10,9 @@ import pytest
 from langchain_core.language_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
+from layrcake.agent_tools import AsyncLayrcakeSession
 
 from agent import build_agent, stream
-from layrcake_tools import Run
 from tests.conftest import APPROVAL_URL, CAMPAIGN_ID, MockLayrcake
 
 
@@ -27,7 +27,7 @@ def tool_call(name: str, args: dict[str, Any], call_id: str) -> AIMessage:
     return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": call_id, "type": "tool_call"}])
 
 
-async def test_agent_stops_at_the_approval_link(run: Run, api: MockLayrcake) -> None:
+async def test_agent_stops_at_the_approval_link(run: AsyncLayrcakeSession, api: MockLayrcake) -> None:
     lead = {"email": "ada@acme.com", "first_name": "Ada", "company_name": "Acme"}
     script = [
         tool_call("find_leads", {"audience": "Sales leaders in London", "titles": ["Head of Sales"]}, "c1"),
@@ -56,7 +56,7 @@ async def test_agent_stops_at_the_approval_link(run: Run, api: MockLayrcake) -> 
     assert "confirmation_token" not in api.requests[-1][1]
 
 
-async def test_a_refusal_reaches_the_model(run: Run, api: MockLayrcake) -> None:
+async def test_a_refusal_reaches_the_model(run: AsyncLayrcakeSession, api: MockLayrcake) -> None:
     script = [
         tool_call(
             "create_campaign", {"name": "Q4", "leads": [{"email": "bob@acme.com"}], "steps": [{"body": "Hi"}]}, "c1"
@@ -73,7 +73,7 @@ async def test_a_refusal_reaches_the_model(run: Run, api: MockLayrcake) -> None:
     assert api.requests == []
 
 
-async def test_stream_prints_each_tool_call(run: Run, capsys: pytest.CaptureFixture[str]) -> None:
+async def test_stream_prints_each_tool_call(run: AsyncLayrcakeSession, capsys: pytest.CaptureFixture[str]) -> None:
     script = [
         tool_call("verify_email", {"email": "ada@acme.com"}, "c1"),
         AIMessage(content="Kept 1 address."),

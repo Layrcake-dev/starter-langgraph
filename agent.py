@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
-import uuid
 from decimal import Decimal
 from typing import Any, Union
 
@@ -13,9 +12,10 @@ from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from layrcake import AsyncLayrcake
+from layrcake.agent_tools import AsyncLayrcakeSession
 
 from instructions import DEFAULT_BRIEF, instructions
-from layrcake_tools import TOOLS, Run
+from layrcake_tools import TOOLS
 
 DEFAULT_MODEL = "anthropic:claude-sonnet-5-5"
 MODEL_KEYS = {"anthropic": "ANTHROPIC_API_KEY", "openrouter": "OPENROUTER_API_KEY", "openai": "OPENAI_API_KEY"}
@@ -25,11 +25,11 @@ def build_agent(budget: Decimal, dry_run: bool, model: Union[str, BaseChatModel]
     """A LangGraph agent. launch_campaign is return_direct, so the graph ends at the approval link."""
     if isinstance(model, str):
         model = init_chat_model(model)  # "provider:model", e.g. anthropic:claude-sonnet-5-5
-    # Paid calls take a lock in Run.paid, so parallel tool calls still run one at a time.
-    return create_agent(model, TOOLS, system_prompt=instructions(budget, dry_run), context_schema=Run)
+    # Paid calls take the session's lock, so parallel tool calls still run one at a time.
+    return create_agent(model, TOOLS, system_prompt=instructions(budget, dry_run), context_schema=AsyncLayrcakeSession)
 
 
-async def stream(agent: Any, brief: str, run: Run) -> str:
+async def stream(agent: Any, brief: str, run: AsyncLayrcakeSession) -> str:
     """Run the graph, print each tool call as it happens, and return the model's last text."""
     final = ""
     async for update in agent.astream(
@@ -69,13 +69,13 @@ async def main() -> None:
         f"{'Dry run, nothing is charged' if args.dry_run else 'Live run'}. Budget: {budget} credits.\nBrief: {brief}\n"
     )
     async with AsyncLayrcake() as client:  # reads LAYRCAKE_API_KEY
-        run = Run(client=client, budget=budget, dry_run=args.dry_run, run_id=uuid.uuid4().hex)
+        run = AsyncLayrcakeSession(client, budget_credits=budget, dry_run=args.dry_run)
         agent = build_agent(budget, args.dry_run, model)
         final = await stream(agent, brief, run)
 
     if final and not run.approval_url and not run.launch_error:
         print(f"\n{final}")
-    print(f"\nFound {run.found} people. Kept {run.kept} verified emails ({run.catch_all} catch-all).")
+    print(f"\nFound {run.found} people. Kept {len(run.verified)} verified emails ({len(run.catch_all)} catch-all).")
     print(f"Layrcake credits spent: {run.spent} of {budget}.")
     if run.approval_url:
         print(f"Nothing has been sent. A person approves or declines here: {run.approval_url}")

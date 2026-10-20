@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Callable
-from decimal import Decimal
 from typing import Any
 
 import httpx
 import pytest
 from layrcake import AsyncLayrcake
-
-from layrcake_tools import Run
+from layrcake.agent_tools import AsyncLayrcakeSession
 
 Answer = Callable[[dict[str, Any]], Any]
 CAMPAIGN_ID = "4f1c2b8e-0b7a-4c1e-9a55-2f6f1d2c3b4a"
@@ -43,7 +41,16 @@ ANSWERS: dict[str, Answer] = {
         "result": {"email": body["email"], "status": "valid" if body["email"] == "ada@acme.com" else "invalid"},
         "layrcake": meta("1.250000"),
     },
-    "/v1/campaigns": lambda body: {"result": {"campaign_id": CAMPAIGN_ID, "state": "draft", "removed": {"total": 0}}},
+    "/v1/campaigns": lambda body: {
+        "result": {
+            "campaign_id": CAMPAIGN_ID,
+            "name": body["name"],
+            "state": "draft",
+            "leads_accepted": len(body["leads"]),
+            "leads_suppressed": 0,
+            "created_at": "2026-10-20T00:00:00Z",
+        }
+    },
     "/v1/launch_campaign": lambda body: {
         "result": {
             "status": "needs_confirmation",
@@ -86,5 +93,5 @@ async def client(api: MockLayrcake) -> AsyncIterator[AsyncLayrcake]:
 
 
 @pytest.fixture
-def run(client: AsyncLayrcake) -> Run:
-    return Run(client=client, budget=Decimal(100), dry_run=False, run_id="run-test")
+def run(client: AsyncLayrcake) -> AsyncLayrcakeSession:
+    return AsyncLayrcakeSession(client, budget_credits=100, run_id="run-test")
